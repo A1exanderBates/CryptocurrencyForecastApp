@@ -1,0 +1,506 @@
+---
+title: "Predictive Growth for Cryptocurrencies"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    social: menu
+    theme: flatly
+runtime: shiny
+---
+
+Profit Forecast
+===================================== 
+
+```{r, include = FALSE}
+# Loading R-packages
+library(tidyverse)
+library(shiny)
+library(ggplot2)
+library(plotly)
+library(dygraphs)
+library(prophet)
+library(forecast)
+library(randomForest)
+```
+
+```{r}
+# Reading in the data
+btc_dat <- read.csv("coin_Bitcoin.csv")
+eth_dat <- read.csv("coin_Ethereum.csv")
+cdn_dat <- read.csv("coin_Cardano.csv")
+dot_dat <- read.csv("coin_Polkadot.csv")
+tth_dat <- read.csv("coin_Tether.csv")
+mon_dat <- read.csv("coin_Monero.csv")
+doge_dat <- read.csv("coin_Dogecoin.csv")
+eos_dat <- read.csv("coin_EOS.csv")
+lite_dat <- read.csv("coin_Litecoin.csv")
+uni_dat <- read.csv("coin_Uniswap.csv")
+xrp_dat <- read.csv("coin_XRP.csv")
+link_dat <- read.csv("coin_ChainLink.csv")
+
+# Manipulating data sets for prophet forecast model
+```
+
+```{r}
+# Merging, reordering, and cleaning the data
+full_dat <- bind_rows(btc_dat, eth_dat, xrp_dat, cdn_dat, dot_dat, tth_dat, mon_dat, doge_dat, eos_dat, lite_dat, uni_dat, link_dat) %>% 
+    arrange(desc(Date)) %>%
+    separate(Date, into = c('Date','Time'), sep = ' ') %>% 
+    rename(Cryptocurrency = Name) %>% 
+    mutate(ds = as.Date(Date)) %>% 
+    mutate(markcap = log10(Marketcap)) %>% 
+    rowwise() %>% mutate(y = mean(c(High, Low)))
+```
+
+
+```{r}
+# Different method
+  dat_func <- function(data){
+    data %>% 
+    separate(Date, into = c('Date','Time'), sep = ' ') %>% 
+    mutate(ds = as.Date(Date)) %>% 
+    rowwise() %>% 
+    mutate(y = mean(c(High, Low))) %>%
+    select(ds, y)
+}
+
+btc_dat <- dat_func(btc_dat)
+eth_dat <- dat_func(eth_dat)
+cdn_dat <- dat_func(cdn_dat)
+dot_dat <- dat_func(dot_dat)
+tth_dat <- dat_func(tth_dat)
+mon_dat <- dat_func(mon_dat)
+doge_dat <- dat_func(doge_dat)
+eos_dat <- dat_func(eos_dat)
+lite_dat <- dat_func(lite_dat)
+uni_dat <- dat_func(uni_dat)
+xrp_dat <- dat_func(xrp_dat)
+link_dat <- dat_func(link_dat)
+```
+
+Inputs {.sidebar}
+-----------------------------------------------------------------------
+
+```{r}
+selectInput(inputId = 'ph_plot',
+            label = 'Select Cryptocurrency to Forecast',
+            choices = c('Bitcoin',
+                        'Ethereum', 
+                        'Ripple',
+                        'Tether',
+                        'Dogecoin',
+                        'Cardano', 
+                        'Polkadot',
+                        'Monero',
+                        'Uniswap',
+                        'Litecoin', 
+                        'EOS', 
+                        'ChainLink'),
+            selected = 'Ethereum')
+
+# dateRangeInput
+
+# selectInput prediction_model
+```
+
+The prophet forecasting model implements a procedure for forecasting time series data predicated on an additive model where non-linear trends are fit with daily, weekly and yearly seasonality. Prophet works well with data that has missing values and shifts in the trend. In addition, it handles outliers well.
+
+
+Row 
+--------------------------------------------------------------------------
+
+```{r}
+renderDygraph({
+
+# Selecting Crypto currency type
+    if (input$ph_plot == "Bitcoin" ){
+        dat <- btc_dat
+    } else if (input$ph_plot == "Ethereum"){
+        dat <- eth_dat
+    } else if (input$ph_plot == "Ripple"){
+        dat <- xrp_dat
+    } else if (input$ph_plot == "Tether"){
+        dat <- tth_dat
+    } else if (input$ph_plot == "Cardano"){
+        dat <- cdn_dat
+    } else if (input$ph_plot == 'Dogecoin'){
+        dat <- doge_dat
+    } else if (input$ph_plot == "Polkadot"){
+        dat <- dot_dat
+    } else if (input$ph_plot == "Monero"){
+        dat <- mon_dat
+    } else if (input$ph_plot == "Uniswap"){
+        dat <- uni_dat
+    } else if (input$ph_plot == "Litecoin"){
+        dat <- lite_dat
+    } else if (input$ph_plot == "EOS"){
+        dat <- eos_dat
+    } else {
+        dat <- link_dat
+    }
+
+# Prophet function
+model_x <- prophet(dat)
+future_x <- make_future_dataframe(model_x, periods = 365)
+tail(future_x)
+
+forecast_x <- predict(model_x, future_x)
+tail(forecast_x[c('ds', 'yhat', 'yhat_lower', 'yhat_upper')])
+
+# Plotting
+dyplot.prophet(model_x, forecast_x)
+})
+
+```
+
+Row
+-----------------------------------------------------------------------
+
+### Comparison of Cryptocurrencies by Price per Coin
+```{r}
+smpl <- full_dat %>% select(Cryptocurrency, ds, y)
+
+smpl_plot <- ggplot(smpl, aes(ds, y, col = Cryptocurrency)) + 
+    geom_line() + 
+    labs(x="Year", y = "Price per Coin (USD)", title = "Comparison of Coin Price  by Year") +
+    theme_bw() 
+ggplotly(smpl_plot)
+
+```
+
+### Comparison of Cryptocurrencies by Marketcap
+
+```{r}
+smpl <- full_dat %>% select(Cryptocurrency, ds, markcap)
+
+smpl_plot <- ggplot(smpl, aes(ds, markcap, col = Cryptocurrency)) + 
+    geom_line() + 
+    labs(x="Year", y = "Market Cap (in billions USD)", title = "Market Cap of Cryptos by Year") +
+    theme_bw() 
+ggplotly(smpl_plot)
+```
+
+Random Walk
+===================================== 
+
+Inputs {.sidebar}
+-----------------------------------------------------------------------
+
+```{r}
+selectInput(inputId = 'rwf_plot',
+            label = 'Select Cryptocurrency to Forecast',
+            choices = c('Bitcoin',
+                        'Ethereum', 
+                        'Ripple',
+                        'Tether',
+                        'Dogecoin',
+                        'Cardano', 
+                        'Polkadot',
+                        'Monero',
+                        'Uniswap',
+                        'Litecoin', 
+                        'EOS', 
+                        'ChainLink'),
+            selected = 'Ethereum')
+
+# dateRangeInput
+
+numericInput(
+  inputId = 'pred_time',
+  label = 'Prediction Duration in Days',
+  value = 1,
+)
+
+
+```
+
+The Random Walk is one of the most basic forms of ARIMA prediction. The model takes in previous fluctuation and computes a range within which we can be fairly certain the currency will remain. This is useful for both short term and long term analysis of the future behavior of any given cryptocurrency.
+
+Row 
+--------------------------------------------------------------------------
+
+```{r}
+renderPlot({
+
+# Selecting Crypto currency type
+    if (input$rwf_plot == "Bitcoin" ){
+        dat <- btc_dat
+    } else if (input$rwf_plot == "Ethereum"){
+        dat <- eth_dat
+    } else if (input$rwf_plot == "Ripple"){
+        dat <- xrp_dat
+    } else if (input$rwf_plot == "Tether"){
+        dat <- tth_dat
+    } else if (input$rwf_plot == "Cardano"){
+        dat <- cdn_dat
+    } else if (input$rwf_plot == 'Dogecoin'){
+        dat <- doge_dat
+    } else if (input$rwf_plot == "Polkadot"){
+        dat <- dot_dat
+    } else if (input$rwf_plot == "Monero"){
+        dat <- mon_dat
+    } else if (input$rwf_plot == "Uniswap"){
+        dat <- uni_dat
+    } else if (input$rwf_plot == "Litecoin"){
+        dat <- lite_dat
+    } else if (input$rwf_plot == "EOS"){
+        dat <- eos_dat
+    } else {
+        dat <- link_dat
+    }
+
+  dat = ts(dat['y'])
+  
+  dat.fcast = rwf(dat, h=input$pred_time)
+  plot(dat.fcast, xlab = 'Days Since First Recorded Value', ylab = 'Predicted Walk')
+  
+  
+  
+})
+
+```
+
+
+Row 
+--------------------------------------------------------------------------
+
+```{r}
+renderPrint({
+
+   if (input$rwf_plot == "Bitcoin" ){
+        dat <- btc_dat
+    } else if (input$rwf_plot == "Ethereum"){
+        dat <- eth_dat
+    } else if (input$rwf_plot == "Ripple"){
+        dat <- xrp_dat
+    } else if (input$rwf_plot == "Tether"){
+        dat <- tth_dat
+    } else if (input$rwf_plot == "Cardano"){
+        dat <- cdn_dat
+    } else if (input$rwf_plot == 'Dogecoin'){
+        dat <- doge_dat
+    } else if (input$rwf_plot == "Polkadot"){
+        dat <- dot_dat
+    } else if (input$rwf_plot == "Monero"){
+        dat <- mon_dat
+    } else if (input$rwf_plot == "Uniswap"){
+        dat <- uni_dat
+    } else if (input$rwf_plot == "Litecoin"){
+        dat <- lite_dat
+    } else if (input$rwf_plot == "EOS"){
+        dat <- eos_dat
+    } else {
+        dat <- link_dat
+    }
+  
+  
+    dat = ts(dat['y'])
+  
+    dat.fcast = rwf(dat, h=input$pred_time)
+    summary(dat.fcast, maxsum=1)
+})
+```
+  
+
+Trends
+===================================== 
+
+
+Inputs {.sidebar}
+-----------------------------------------------------------------------
+
+```{r}
+selectInput(inputId = 'param_plot',
+            label = 'Select Cryptocurrency to Forecast',
+            choices = c('Bitcoin',
+                        'Ethereum', 
+                        'Ripple',
+                        'Tether',
+                        'Dogecoin',
+                        'Cardano', 
+                        'Polkadot',
+                        'Monero',
+                        'Uniswap',
+                        'Litecoin', 
+                        'EOS', 
+                        'ChainLink'),
+            selected = 'Ethereum')
+
+```
+
+An important part of understanding financial forecasting is determining whether a given
+currency is stationary (lacks potential for large growth or decline) or cyclical (if
+the currency fluctuates based on the time of year). The ACF is a measure of volatility
+with high values as lag increase signifying an extremely volatile currency. The PACF is
+a measure of how cyclical a currency is, with a sharp decline to 0 as lag increases.
+It is worth noting Tensor is the only cryptocurrency with any noticable cyclical tendencies.
+
+
+Row 
+--------------------------------------------------------------------------
+
+```{r}
+renderPlot({
+
+# Selecting Crypto currency type
+    if (input$rwf_plot == "Bitcoin" ){
+        dat <- btc_dat
+    } else if (input$param_plot == "Ethereum"){
+        dat <- eth_dat
+    } else if (input$param_plot == "Ripple"){
+        dat <- xrp_dat
+    } else if (input$param_plot == "Tether"){
+        dat <- tth_dat
+    } else if (input$param_plot == "Cardano"){
+        dat <- cdn_dat
+    } else if (input$param_plot == 'Dogecoin'){
+        dat <- doge_dat
+    } else if (input$param_plot == "Polkadot"){
+        dat <- dot_dat
+    } else if (input$param_plot == "Monero"){
+        dat <- mon_dat
+    } else if (input$param_plot == "Uniswap"){
+        dat <- uni_dat
+    } else if (input$param_plot == "Litecoin"){
+        dat <- lite_dat
+    } else if (input$param_plot == "EOS"){
+        dat <- eos_dat
+    } else {
+        dat <- link_dat
+    }
+
+  dat = ts(dat['y'])
+  
+  acf(dat)
+  
+})
+
+```
+
+
+Row 
+--------------------------------------------------------------------------
+
+```{r}
+renderPlot({
+
+       if (input$rwf_plot == "Bitcoin" ){
+        dat <- btc_dat
+    } else if (input$param_plot == "Ethereum"){
+        dat <- eth_dat
+    } else if (input$param_plot == "Ripple"){
+        dat <- xrp_dat
+    } else if (input$param_plot == "Tether"){
+        dat <- tth_dat
+    } else if (input$param_plot == "Cardano"){
+        dat <- cdn_dat
+    } else if (input$param_plot == 'Dogecoin'){
+        dat <- doge_dat
+    } else if (input$param_plot == "Polkadot"){
+        dat <- dot_dat
+    } else if (input$param_plot == "Monero"){
+        dat <- mon_dat
+    } else if (input$param_plot == "Uniswap"){
+        dat <- uni_dat
+    } else if (input$param_plot == "Litecoin"){
+        dat <- lite_dat
+    } else if (input$param_plot == "EOS"){
+        dat <- eos_dat
+    } else {
+        dat <- link_dat
+    }
+
+  dat = ts(dat['y'])
+  
+  pacf(dat)
+})
+
+```
+
+Random Forest
+===================================== 
+
+```{r}
+# Reading in the data
+btc_dat <- read.csv("coin_Bitcoin.csv")
+```
+
+```{r}
+# Merging, reordering, and cleaning the data
+btc_data = btc_dat %>% select(High, Low, Open, Close, Volume, Marketcap)
+btc_dataHigh = btc_data %>% mutate(NextHigh = lead(High))
+btc_dataClose = btc_data %>% mutate(NextClose = lead(Close))
+dt = sort(sample(nrow(btc_data), nrow(btc_data)*.7))
+trainHigh = btc_dataHigh[dt,]
+testHigh = btc_dataHigh[-dt,]
+trainClose = btc_dataClose[dt,]
+testClose = btc_dataClose[-dt,]
+```
+
+
+```{r rf}
+modelHigh = randomForest(NextHigh ~ ., data = btc_dataHigh, proxmity=TRUE, na.action = na.omit)
+modelClose = randomForest(NextClose ~ ., data = btc_dataClose, proxmity=TRUE, na.action = na.omit)
+HighPred = predict(modelHigh, testHigh)
+residualsHigh = (testHigh$NextHigh - HighPred)
+ClosePred = predict(modelClose, testClose)
+residualsClose = (testClose$NextClose - ClosePred)
+```
+
+Inputs {.sidebar}
+-----------------------------------------------------------------------
+
+```{r}
+numericInput("High", label = h3("High"), value = 1)
+numericInput("Low", label = h3("Low"), value = 1)
+numericInput("Open", label = h3("Open"), value = 1)
+numericInput("Close", label = h3("Close"), value = 1)
+numericInput("Volume", label = h3("Volume"), value = 1)
+numericInput("Marketcap", label = h3("Marketcap"), value = 1)
+
+```
+
+Column
+---------------------------------------------------------------------
+```{r}
+renderPrint({
+    High = c(input$High)
+    Low = c(input$Low)
+    Open = c(input$Open)
+    Close = c(input$Close)
+    Volume = c(input$Volume)
+    Marketcap = c(input$Marketcap)
+    df = data.frame(High, Low, Open, Close, Volume, Marketcap)
+    ClosePred = predict(modelClose, df)
+    cat("Predicted close for the next day: ", ClosePred , "Dollars!")
+})
+
+```
+
+Column
+---------------------------------------------------------------------
+
+```{r}
+btc_dat2 <- btc_dat %>% separate(Date, into = c('Date','Time'), sep = ' ')
+renderPlotly({
+  btc_plot <- ggplot(btc_dat2, aes(Date, close) + geom_line() + 
+    labs(x="Date", y = "Daily Closing Price (USD)"), title = "Daily Closing BTC Price") +
+    theme_bw() 
+ggplotly(btc_plot)
+
+})
+```
+
+
+Here we utilize a random forest classifier, trained and validated on bitcoin data, to create a method of predicting the closing value for the following day given input data from the previous day. This is an important tool in determining whether to buy, sell, or hold on any given day based off of one's expectations and comfort levels.
+
+# About
+
+#### Overview:
+Cryptocurrencies have exploded in popularity recently, with Bitcoin leading the way at a marketcap of $2.3 trillion as of May 2021. We thought it would be a cool explore how the leading coins are expected to perform in the near future. Data on the historical prices of cryptocurrency was gathered from Kaggle: https://www.kaggle.com/sudalairajkumar/cryptocurrencypricehistory
+
+#### App Guide:
+To select the forecasting model, select the desired tab at the header, and it will provide you with the corresponding plot. In addition, we've implement various machine learning models to predict the high and low prices for each coin.
+
+#### About Us
+Our interdisciplinary team is composed of Zach Boroughs, Alexander Bates, and Talal Widatalla. We share a passion for cryptocurrency and hoped to create a tool to help with the predicting the trends of a very volatile form of currency in both the short and long term.
