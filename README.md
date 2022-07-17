@@ -16,7 +16,7 @@ The random forest algorithm builds an ensemble of decision trees based upon the 
 ## Trend Analysis: ACF and PACF
 The auto-correlation and partial auto-correlation plots are useful to determine the cyclicality of each of the cryptocurrencies.
 
-## Additional info
-I was responsible the idea, finding the data, and for constructing the first version, which had the prophet model and the plotlys. In addition, I helped write the 'about' page.   
+## Additional info and Personal Contribution
+I conceptualized the app, extracted the data, and produced the first working version.   
 
 The app was created using flexdashboard in R studio. Packages required to construct the app can be found in the rmd file provided.
