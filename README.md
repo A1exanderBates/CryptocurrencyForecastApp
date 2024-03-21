@@ -4,7 +4,7 @@
 
 This is a cryptocurrency forecasting app for some of the top performing currencies in 2021. It includes different types of forecasting models to predict the performance of various cryptocurrencies, a supervised learning algorithm to predict closing bitcoin price, and analysis of fluctuations in a cryptocurrency's history to determine whether it has a stationary or non-stationary cycle.
 
-![Crypto Forecast App Screenshot](https://github.com/A1exanderBates/CryptocurrencyForecastApp/blob/main/crypto_forecast_img.png))
+![Crypto Forecast App Screenshot](https://github.com/A1exanderBates/CryptocurrencyForecastApp/blob/main/crypto_forecast_img.png)
 
 ## Forecasting model 1: Prophet Model
 A forecasting model that considers daily, monthly, and yearly seasonality. Predicts up to one year in advance.
